@@ -14,6 +14,8 @@ Auteurs
 -------
 Ce code a été initialement écrit et publié par Pierre Kancir avec le soutien de Airbot Systems en mai 2020.
 
+Porté sur carte Lolin32 Lite (inclus chargeur batterie Lipo) avec SSD1306 et NEO-6M externes par Patrick Tissot en Juin 2020. Correction du calcul de distance parcourue, et du test valeur absolue de distance ainsi que mémorisation des anciennes latitudes et longitudes quand un beacon est envoyé (et non à chaque trame GPS reçue). Ajout de menu déroulant afin de choisir le drone_ID à envoyer à partir d'une liste pré_établie en mémoire (avec rappel automatique à la prochaine mise sous tension).
+
 Licence
 -------
 
