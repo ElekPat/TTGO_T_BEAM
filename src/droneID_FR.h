@@ -17,6 +17,11 @@
  *
  */
 
+/*
+ * Modified by Patrick Tissot 12 June 2020
+ * fixed distance travelled (absolute value for comparison and call to distanceBetween() with correct parameters in double)
+ * fixed memorise last gps lon and lat only when sending a beacon (not every received GPS frame)
+*/
 
 #pragma once
 #include <cstdint>
@@ -41,29 +46,16 @@ public:
     static constexpr uint8_t FRAME_PAYLOAD_LEN_MAX = 251;
 
     /**
-     * Setter pour les coordonnées GPS en entier en centidegrees
-     * @param lat
-     * @param lon
-     */
-    void set_lat_lon(int32_t lat, int32_t lon) {
-        _old_latitude = _latitude;
-        _old_longitude = _longitude;
-        _latitude = lat * 1e-2;
-        _longitude = lon * 1e-2;
-        _travelled_distance = distanceBetween(_latitude, _longitude, _old_latitude, _old_longitude);
-    }
-    /**
      * Setter pour les coordonnées GPS en double en centidegrees
      * Converti les valeurs en entiers.
      * @param lat
      * @param lon
      */
     void set_lat_lon(double lat, double lon) {
-        _old_latitude = _latitude;
-        _old_longitude = _longitude;
         _latitude = lat * 1e5;
         _longitude = lon * 1e5;
-        _travelled_distance = distanceBetween(_latitude, _longitude, _old_latitude, _old_longitude);
+
+        _travelled_distance = distanceBetween(lat, lon, (double)(_old_latitude / 1e5), (double)(_old_longitude / 1e5)); // PT: correction
     }
     /**
      * Setter pour l'altitude en MSL (Mean Sea Level)/ Niveau au dessus de la mer en m
@@ -84,18 +76,11 @@ public:
      * @param lat
      * @param lon
      */
-    void set_home_lat_lon(int32_t lat, int32_t lon) {
-        _home_latitude = lat * 1e-2;
-        _home_longitude = lon * 1e-2;
-    }
-    /**
-     * Setter pour les coordonnées GPS en entiers en centidegrees
-     * @param lat
-     * @param lon
-     */
     void set_home_lat_lon(double lat, double lon) {
         _home_latitude = lat * 1e5;
         _home_longitude = lon * 1e5;
+        _old_latitude = _home_latitude; // PT: on mémorise lat et lon dans old afin d'éviter d'avoir une distance très grande lors du premier appel de distanceBetween()
+        _old_longitude = _home_longitude;
     }
     /**
      * Setter pour la vitesse au sol en m/s
@@ -250,6 +235,8 @@ public:
     void set_last_send() {
         _last_send = std::chrono::high_resolution_clock::now();
         _travelled_distance = 0;
+        _old_latitude = _latitude; // PT: on met à jour old_lat et old_lon à chaque envoi de beacon
+        _old_longitude = _longitude;
     }
 
     /**
@@ -258,21 +245,29 @@ public:
      */
     bool has_pass_time() const {
         std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - _last_send;
-        return elapsed.count() >= FRAME_TIME_LIMIT;
+        return (elapsed.count() >= FRAME_TIME_LIMIT);
     }
     /**
      * Notifie quand le drone a bougé de plus de 30m en moins de 3s.
      * @return true if distance travelled > 30m
      */
     bool has_pass_distance() const {
-        return _travelled_distance >= FRAME_DISTANCE_LIMIT;
+        return (abs(_travelled_distance) >= FRAME_DISTANCE_LIMIT); // PT: valeur absolue de distance pour comparaison
     }
     /**
      * Notifie si la condition de distance ou de temps est passé pour envoyer une nouvelle trame.
      * @return
      */
     bool time_to_send() const {
-        return has_pass_time() || has_pass_distance();
+        return (has_pass_time() || has_pass_distance());
+    }
+
+	/**
+     * PT: Permet de connaitre la distance parcourue par le drone depuis le dernier beacon envoyé
+     * @return la valeur absolue de distance parcourue
+     */
+    int32_t get_travelled_distance() {
+        return (abs(_travelled_distance));
     }
 
 private:
@@ -323,6 +318,8 @@ private:
 
     static constexpr uint8_t FRAME_COPTER_ID = 3;
     static constexpr uint8_t FRAME_PLANE_ID = 4;
+    static constexpr uint8_t FRAME_GLIDER_ID = 2; // PT: défini pour un planeur ou avion (aile) non motorisé
+    static constexpr uint8_t FRAME_FREE_ID = 1; // PT: défini pour le vol libre
 
     /**
      * Beacon frame VS:
@@ -391,7 +388,6 @@ private:
         delta = sqrt(delta);
         double denom = (slat1 * slat2) + (clat1 * clat2 * cdlong);
         delta = atan2(delta, denom);
-        return static_cast<int32_t>(delta * 6372795);
+        return (static_cast<int32_t>(delta * 6372795));
     }
 };
-
